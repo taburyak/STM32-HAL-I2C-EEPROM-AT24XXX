@@ -1,98 +1,113 @@
 /*
  * AT24Cxx.c
- *
- *  Created on: 20 трав. 2018 р.
- *      Author: Andriy
  */
+
 #include "AT24Cxx.h"
 
-// Перетворюємо адресу з 7 біт на на 8 біт
-static unsigned eeprom_address = EEPROM_ADDRESS << 1;
-// Маску обчислюємо по заданому розміру сторінки.
-static unsigned inpage_addr_mask = EEPROM_PAGESIZE - 1;
+static const uint16_t eeprom_device_addr = (EEPROM_ADDRESS << 1);
+static const uint16_t inpage_addr_mask = (EEPROM_PAGESIZE - 1);
 
-static HAL_StatusTypeDef AT24Cxx_WriteReadEEPROM(unsigned address, const void* src, unsigned len, bool write);
-static unsigned size_to_page_end(unsigned addr);
+static uint16_t size_to_page_end(uint16_t addr)
+{
+    return EEPROM_PAGESIZE - (addr & inpage_addr_mask);
+}
 
 HAL_StatusTypeDef AT24Cxx_IsConnected(void)
 {
-	return HAL_I2C_IsDeviceReady(&EEPROM_I2C, eeprom_address, 1, EEPROM_TIMEOUT);
+    return HAL_I2C_IsDeviceReady(&EEPROM_I2C, eeprom_device_addr, 2, EEPROM_TIMEOUT);
 }
 
-HAL_StatusTypeDef AT24Cxx_ReadEEPROM(unsigned address, const void* src, unsigned len)
+/**
+ * @brief РћРїРёС‚СѓРІР°РЅРЅСЏ РіРѕС‚РѕРІРЅРѕСЃС‚С– С‡РёРїР° РїС–СЃР»СЏ Р·Р°РїРёСЃСѓ (Acknowledge Polling)
+ *        Р—Р°РјС–РЅСЋС” Р±Р»РѕРєСѓСЋС‡РёР№ HAL_Delay РЅР° РЅРµР±Р»РѕРєСѓСЋС‡Сѓ РїРµСЂРµРІС–СЂРєСѓ Р· РїРѕСЃС‚СѓРїРєРѕСЋ РєРІР°РЅС‚Р° FreeRTOS.
+ */
+HAL_StatusTypeDef AT24Cxx_WaitStandbyState(void)
 {
-	return AT24Cxx_WriteReadEEPROM(address, src, len, false);
-}
+    uint32_t start_tick = HAL_GetTick();
 
-HAL_StatusTypeDef AT24Cxx_WriteEEPROM(unsigned address, const void* src, unsigned len)
-{
-	return AT24Cxx_WriteReadEEPROM(address, src, len, true);
-}
-
-static HAL_StatusTypeDef AT24Cxx_WriteReadEEPROM(unsigned address, const void* src, unsigned len, bool write)
-{
-	uint8_t *pdata = (uint8_t*) src;
-
-	HAL_StatusTypeDef result = HAL_OK;
-
-    // Перша порція не може бути більша, щоб не перетнула розмір сторінки
-    unsigned max_portion = size_to_page_end(address);
-    unsigned portion;
-
-    while (len != 0 && result == HAL_OK)
+    while ((HAL_GetTick() - start_tick) < EEPROM_WRITE_MAX_MS)
     {
-        portion = len;              // Все, що залишилося -- у одну порцію
-
-        if (portion > max_portion)
+        if (HAL_I2C_IsDeviceReady(&EEPROM_I2C, eeprom_device_addr, 1, 5) == HAL_OK)
         {
-        	portion = max_portion;  // Порція завелика, зменшуємо
+            return HAL_OK;
         }
 
-        // Працюємо із порцією, яку можна проковтнути
-        if(write)
-		{
-			result = HAL_I2C_Mem_Write(&EEPROM_I2C,
-									eeprom_address,
-									address,
-									I2C_MEMADD_SIZE_16BIT,
-									pdata,
-									portion,
-									EEPROM_TIMEOUT);
-		}
-        else
+        // РЇРєС‰Рѕ РїР»Р°РЅСѓРІР°Р»СЊРЅРёРє FreeRTOS Р°РєС‚РёРІРЅРёР№, РІС–РґРґР°С”РјРѕ РєРІР°РЅС‚ С‡Р°СЃСѓ С–РЅС€РёРј С‚Р°СЃРєР°Рј
+        if (osKernelGetState() == osKernelRunning)
         {
-        	result = HAL_I2C_Mem_Read(&EEPROM_I2C,
-        	        				eeprom_address,
-        							address,
-        							I2C_MEMADD_SIZE_16BIT,
-        							pdata,
-        							portion,
-        							EEPROM_TIMEOUT);
-        }
-
-        // І реєструємо, що вже це зробили.
-        len     -= portion;
-        address += portion;
-        pdata   += portion;
-
-        // наступне, якщо взагалі буде, буде від початку сторінки
-        max_portion = EEPROM_PAGESIZE;
-
-        if(write)
-        {
-        	HAL_Delay(EEPROM_WRITE);
-        }
-        else
-        {
-        	HAL_Delay(EEPROM_WRITE / 2);
+            osDelay(1);
         }
     }
 
-    return result;
+    return HAL_TIMEOUT;
 }
 
-// обчислення відстані до кінця сторінки
-static unsigned size_to_page_end(unsigned addr)
+HAL_StatusTypeDef AT24Cxx_ReadEEPROM(uint16_t address, void* dest, uint16_t len)
 {
-    return (~addr & inpage_addr_mask) + 1;
+    if (dest == NULL || len == 0 || (address + len) > 256)
+    {
+        return HAL_ERROR;
+    }
+
+    // РџРµСЂРµРєРѕРЅСѓС”РјРѕСЃСЊ, С‰Рѕ РїРѕРїРµСЂРµРґРЅСЏ РѕРїРµСЂР°С†С–СЏ Р·Р°РїРёСЃСѓ РІР¶Рµ Р·Р°РІРµСЂС€РµРЅР°
+    HAL_StatusTypeDef status = AT24Cxx_WaitStandbyState();
+    if (status != HAL_OK)
+    {
+        return status;
+    }
+
+    // Р”Р»СЏ AT24C02 РІРёРєРѕСЂРёСЃС‚РѕРІСѓС”С‚СЊСЃСЏ 8-Р±С–С‚РЅРёР№ СЂРѕР·РјС–СЂ Р°РґСЂРµСЃРё РєРѕРјС–СЂРєРё
+    return HAL_I2C_Mem_Read(&EEPROM_I2C,
+                            eeprom_device_addr,
+                            address,
+                            I2C_MEMADD_SIZE_8BIT,
+                            (uint8_t*)dest,
+                            len,
+                            EEPROM_TIMEOUT);
+}
+
+HAL_StatusTypeDef AT24Cxx_WriteEEPROM(uint16_t address, const void* src, uint16_t len)
+{
+    if (src == NULL || len == 0 || (address + len) > 256)
+    {
+        return HAL_ERROR;
+    }
+
+    const uint8_t *pdata = (const uint8_t*)src;
+    HAL_StatusTypeDef result = HAL_OK;
+
+    while (len > 0)
+    {
+        // РџРµСЂРµРІС–СЂСЏС”РјРѕ СЃРєС–Р»СЊРєРё Р±Р°Р№С‚ РјРѕР¶РЅР° Р·Р°РїРёСЃР°С‚Рё РґРѕ РјРµР¶С– РїРѕС‚РѕС‡РЅРѕС— 8-Р±Р°Р№С‚РѕРІРѕС— СЃС‚РѕСЂС–РЅРєРё
+        uint16_t max_portion = size_to_page_end(address);
+        uint16_t chunk = (len < max_portion) ? len : max_portion;
+
+        // Р§РµРєР°С”РјРѕ Р·Р°РІРµСЂС€РµРЅРЅСЏ РїРѕРїРµСЂРµРґРЅС–С… РѕРїРµСЂР°С†С–Р№
+        result = AT24Cxx_WaitStandbyState();
+        if (result != HAL_OK)
+        {
+            return result;
+        }
+
+        // Р—Р°РїРёСЃ РїРѕСЂС†С–С— РґР°РЅРёС… РЅР° СЃС‚РѕСЂС–РЅРєСѓ (8-Р±С–С‚РЅР° Р°РґСЂРµСЃР°С†С–СЏ)
+        result = HAL_I2C_Mem_Write(&EEPROM_I2C,
+                                   eeprom_device_addr,
+                                   address,
+                                   I2C_MEMADD_SIZE_8BIT,
+                                   (uint8_t*)pdata,
+                                   chunk,
+                                   EEPROM_TIMEOUT);
+
+        if (result != HAL_OK)
+        {
+            return result;
+        }
+
+        len     -= chunk;
+        address += chunk;
+        pdata   += chunk;
+    }
+
+    // РћС‡С–РєСѓС”РјРѕ РіРѕС‚РѕРІРЅРѕСЃС‚С– РїС–СЃР»СЏ Р·Р°РІРµСЂС€РµРЅРЅСЏ РѕСЃС‚Р°РЅРЅСЊРѕРіРѕ С†РёРєР»Сѓ Р·Р°РїРёСЃСѓ
+    return AT24Cxx_WaitStandbyState();
 }
