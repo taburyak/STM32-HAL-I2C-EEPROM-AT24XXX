@@ -24,27 +24,48 @@
 
 /* --- Chip Parameter Auto-Configuration --- */
 
-#if defined(AT24C01) || defined(AT24C02)
+#if defined(AT24C01)
     #define EEPROM_PAGESIZE     8
-    #define EEPROM_MAX_ADDR     (defined(AT24C01) ? 128 : 256)
+    #define EEPROM_MAX_ADDR     128
     #define EEPROM_ADDR_16BIT   0
-#elif defined(AT24C04) || defined(AT24C08) || defined(AT24C16)
+#elif defined(AT24C02)
+    #define EEPROM_PAGESIZE     8
+    #define EEPROM_MAX_ADDR     256
+    #define EEPROM_ADDR_16BIT   0
+#elif defined(AT24C04)
     #define EEPROM_PAGESIZE     16
-    #define EEPROM_MAX_ADDR     (defined(AT24C04) ? 512 : (defined(AT24C08) ? 1024 : 2048))
+    #define EEPROM_MAX_ADDR     512
     #define EEPROM_ADDR_16BIT   0
-#elif defined(AT24C32) || defined(AT24C64)
+#elif defined(AT24C08)
+    #define EEPROM_PAGESIZE     16
+    #define EEPROM_MAX_ADDR     1024
+    #define EEPROM_ADDR_16BIT   0
+#elif defined(AT24C16)
+    #define EEPROM_PAGESIZE     16
+    #define EEPROM_MAX_ADDR     2048
+    #define EEPROM_ADDR_16BIT   0
+#elif defined(AT24C32)
     #define EEPROM_PAGESIZE     32
-    #define EEPROM_MAX_ADDR     (defined(AT24C32) ? 4096 : 8192)
+    #define EEPROM_MAX_ADDR     4096
     #define EEPROM_ADDR_16BIT   1
-#elif defined(AT24C128) || defined(AT24C256)
+#elif defined(AT24C64)
+    #define EEPROM_PAGESIZE     32
+    #define EEPROM_MAX_ADDR     8192
+    #define EEPROM_ADDR_16BIT   1
+#elif defined(AT24C128)
     #define EEPROM_PAGESIZE     64
-    #define EEPROM_MAX_ADDR     (defined(AT24C128) ? 16384 : 32768)
+    #define EEPROM_MAX_ADDR     16384
+    #define EEPROM_ADDR_16BIT   1
+#elif defined(AT24C256)
+    #define EEPROM_PAGESIZE     64
+    #define EEPROM_MAX_ADDR     32768
     #define EEPROM_ADDR_16BIT   1
 #elif defined(AT24C512)
     #define EEPROM_PAGESIZE     128
     #define EEPROM_MAX_ADDR     65536
     #define EEPROM_ADDR_16BIT   1
 #endif
+
 
 #define EEPROM_TIMEOUT          100     /* I2C timeout in ms */
 #define EEPROM_WRITE_CYCLE_MS   10      /* Max internal write cycle time */
