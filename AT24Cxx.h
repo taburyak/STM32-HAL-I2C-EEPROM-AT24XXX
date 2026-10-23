@@ -18,8 +18,8 @@
 #define EEPROM_USE_FREERTOS     1       /* 1: Use osDelay, 0: Use HAL_Delay */
 
 /* Select your chip model */
-#define AT24C02                         /* Options: AT24C01, AT24C02, AT24C04, AT24C08, 
-                                           AT24C16, AT24C32, AT24C64, AT24C128, 
+#define AT24C02                         /* Options: AT24C01, AT24C02, AT24C04, AT24C08,
+                                           AT24C16, AT24C32, AT24C64, AT24C128,
                                            AT24C256, AT24C512 */
 
 /* --- Chip Parameter Auto-Configuration --- */
@@ -103,4 +103,3 @@ HAL_StatusTypeDef AT24Cxx_Read(uint32_t address, void* dest, uint32_t len);
 HAL_StatusTypeDef AT24Cxx_Write(uint32_t address, const void* src, uint32_t len);
 
 #endif /* AT24CXX_H_ */
-

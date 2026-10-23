@@ -18,7 +18,7 @@ extern I2C_HandleTypeDef EEPROM_I2C;
 static uint16_t get_device_addr(uint32_t mem_addr)
 {
     uint16_t dev_addr = (EEPROM_ADDRESS << 1);
-    
+
 #if (EEPROM_ADDR_16BIT == 0)
     /* For chips <= 16Kbit, the page bits (8, 9, 10) are part of the device address */
     dev_addr |= ((mem_addr >> 8) & 0x07) << 1;
@@ -118,4 +118,3 @@ HAL_StatusTypeDef AT24Cxx_Write(uint32_t address, const void* src, uint32_t len)
 
     return AT24Cxx_WaitReady();
 }
-
